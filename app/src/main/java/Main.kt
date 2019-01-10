@@ -7,10 +7,19 @@ import me.ivmg.telegram.entities.InlineKeyboardButton
 import me.ivmg.telegram.entities.InlineKeyboardMarkup
 import me.ivmg.telegram.entities.User
 import me.ivmg.telegram.network.fold
+import java.time.LocalDate
 
 object Main {
 
-    private val users = mutableSetOf<User>()
+    data class BathVotingDay(val users: MutableSet<User>, val booker: User?) {
+        val decided get() = booker != null
+    }
+
+    private val votingDays = mutableMapOf<LocalDate, BathVotingDay>()
+    private val today: LocalDate = LocalDate.now()
+    private fun getTodaysVoting(): BathVotingDay {
+        TODO()
+    }
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -34,11 +43,20 @@ object Main {
                     val chatId = update.message?.chat?.id ?: return@command
 
                     val inlineKeyboardMarkup = InlineKeyboardMarkup(generateButtons())
-                    bot.sendMessage(
+                    val result = bot.sendMessage(
                         chatId = chatId,
                         text = "Пацаны! Идём в баньку?",
                         replyMarkup = inlineKeyboardMarkup
                     )
+
+
+                    result.fold({
+                        if (!votingDays.containsKey(today)) {
+                            votingDays[today] = BathVotingDay(mutableSetOf(), null)
+                        }
+                    }, {
+                        // do something with the error
+                    })
                 }
 
                 command("whoWillBook") { bot, update ->
