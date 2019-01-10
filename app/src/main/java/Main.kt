@@ -7,9 +7,12 @@ import me.ivmg.telegram.entities.InlineKeyboardButton
 import me.ivmg.telegram.entities.InlineKeyboardMarkup
 import me.ivmg.telegram.entities.User
 import me.ivmg.telegram.network.fold
+import java.lang.Exception
 import java.time.LocalDate
 
 object Main {
+
+    class VotingNotStartedException(message: String) : Exception(message)
 
     data class BathVotingDay(val users: MutableSet<User>, val booker: User?) {
         val decided get() = booker != null
@@ -17,9 +20,12 @@ object Main {
 
     private val votingDays = mutableMapOf<LocalDate, BathVotingDay>()
     private val today: LocalDate = LocalDate.now()
-    private fun getTodaysVoting(): BathVotingDay {
-        TODO()
+
+    private fun getTodayVoting(): BathVotingDay {
+        return votingDays[today] ?: throw VotingNotStartedException("Сначала запусти голосовалку, глупый")
     }
+
+    private val users get() = getTodayVoting().users
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -29,50 +35,62 @@ object Main {
 
             dispatch {
                 command("start") { bot, update ->
-
-                    val result = bot.sendMessage(chatId = update.message!!.chat.id, text = "Bot started")
-
-                    result.fold({
-                        // do something here with the response
-                    }, {
-                        // do something with the error
-                    })
+                    bot.sendMessage(chatId = update.message!!.chat.id, text = "Я готов!")
                 }
 
                 command("go") { bot, update ->
                     val chatId = update.message?.chat?.id ?: return@command
 
-                    val inlineKeyboardMarkup = InlineKeyboardMarkup(generateButtons())
+                    val inlineKeyboardMarkup = InlineKeyboardMarkup(
+                        listOf(
+                            listOf(InlineKeyboardButton(text = "Иду", callbackData = "accept")),
+                            listOf(InlineKeyboardButton(text = "Не иду", callbackData = "decline"))
+                        )
+                    )
+
                     val result = bot.sendMessage(
                         chatId = chatId,
                         text = "Пацаны! Идём в баньку?",
                         replyMarkup = inlineKeyboardMarkup
                     )
 
-
                     result.fold({
-                        if (!votingDays.containsKey(today)) {
-                            votingDays[today] = BathVotingDay(mutableSetOf(), null)
+                        if (votingDays.containsKey(today)) {
+                            if (getTodayVoting().decided) {
+                                bot.sendMessage(
+                                    chatId = chatId,
+                                    text = "Вы уже проголосовали, чего выпендриваешься?"
+                                )
+                            }
+                        } else {
+                            resetTodayVoting()
                         }
                     }, {
                         // do something with the error
                     })
                 }
 
-                command("whoWillBook") { bot, update ->
+                command("booking") { bot, update ->
                     val chatId = update.message?.chat?.id ?: return@command
+                    val message = try {
+                        val bookManager = users.shuffled().firstOrNull()
 
-                    val bookManager = users.shuffled().firstOrNull()
-                    val message = if (bookManager != null) {
-                        "Поздравляем! Бронирует: ${bookManager.asString()}"
-                    } else {
-                        "Никто не идёт :("
+                        if (bookManager != null) {
+                            "Поздравляем! Бронирует: ${bookManager.asString()}"
+                        } else {
+                            "Никто не идёт :("
+                        }
+                    } catch (ex: VotingNotStartedException) {
+                        ex.message!!
                     }
 
-                    bot.sendMessage(
-                        chatId = chatId,
-                        text = message
-                    )
+
+                    bot.sendMessage(chatId = chatId, text = message)
+                }
+
+                command("reset") { bot, update ->
+                    val chatId = update.message?.chat?.id ?: return@command
+                    bot.sendMessage(chatId, "Я всё обнулил, запускайте голосовалку сначала.")
                 }
 
                 callbackQuery("accept") { bot, update ->
@@ -103,11 +121,8 @@ object Main {
         bot.startPolling()
     }
 
-    private fun generateButtons(): List<List<InlineKeyboardButton>> {
-        return listOf(
-            listOf(InlineKeyboardButton(text = "Иду", callbackData = "accept")),
-            listOf(InlineKeyboardButton(text = "Не иду", callbackData = "decline"))
-        )
+    private fun resetTodayVoting() {
+        votingDays[today] = BathVotingDay(mutableSetOf(), null)
     }
 
     private fun User.asString(): String = "$firstName ${if (lastName.isNullOrEmpty()) "" else lastName}"
