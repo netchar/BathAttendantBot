@@ -8,6 +8,37 @@ import me.ivmg.telegram.entities.*
 import me.ivmg.telegram.network.fold
 import java.time.LocalDate
 
+private const val COMMAND_START = "start"
+private const val COMMAND_HELP = "help"
+private const val COMMAND_BOOK = "book"
+private const val COMMAND_VOTE = "vote"
+private const val COMMAND_RESET = "reset"
+
+
+private const val START_TEXT = """
+Ну что парни, я помогу вам определиться кто идет в баньку.
+
+Список комманд:
+/start - начинает общение и выводит информацию о себе
+/help - показывает доступные комманды и описание
+/vote - запускает голосование
+/book - выбирает красавчика, бронирующего баньку
+/reset - обнуляет текущее голосование
+"""
+
+private const val HELP_TEXT = """
+Создатель нарёк меня Банщик, научил проводить голосование и выбирать того, кто будет бронировать баньку.
+А если будете себя плохо вести, научусь банить в чате.
+
+Комманды:
+/start - начинает общение и выводит информацию о себе
+/help - показывает доступные комманды и описание
+/vote - запускает голосование
+/book - выбирает красавчика, который будет бронировать баню
+/reset  - обнуляет текущее голосование
+"""
+
+
 object Main {
 
     class VotingNotStartedException(message: String) : Exception(message)
@@ -42,14 +73,18 @@ object Main {
     @JvmStatic
     fun main(args: Array<String>) {
         myBot = bot {
-            token = "692920526:AAFvu__xE9cqrGsgu1WQXldYJhBXQbCqzA0"
+            token = "706074071:AAG99X02_Uk9Tn0TVTO5fAk50dRwzPcE7p4"
 
             dispatch {
-                command("start") { bot, update ->
-                    bot.sendMessage(chatId = update.message!!.chat.id, text = "Я готов!")
+                command(COMMAND_START) { bot, update ->
+                    bot.sendMessage(chatId = update.message!!.chat.id, text = START_TEXT)
                 }
 
-                command("go") { bot, update ->
+                command(COMMAND_HELP) { bot, update ->
+                    bot.sendMessage(chatId = update.message!!.chat.id, text = HELP_TEXT)
+                }
+
+                command(COMMAND_VOTE) { bot, update ->
                     val chatId = update.message?.chat?.id ?: return@command
 
                     val inlineKeyboardMarkup = InlineKeyboardMarkup(
@@ -77,7 +112,7 @@ object Main {
                     }
                 }
 
-                command("booking") { bot, update ->
+                command(COMMAND_BOOK) { bot, update ->
                     val chatId = update.message?.chat?.id ?: return@command
                     val message = try {
                         val voting = getTodayVoting()
@@ -95,7 +130,7 @@ object Main {
                     bot.sendMessage(chatId = chatId, text = message)
                 }
 
-                command("reset") { bot, update ->
+                command(COMMAND_RESET) { bot, update ->
                     runIfAdmin(update) {
                         val chatId = update.message?.chat?.id ?: return@runIfAdmin
                         resetVoting(chatId)
@@ -145,8 +180,8 @@ object Main {
             }, error = {
                 myBot.sendMessage(chatId = chatId, text = "Не получилось сбросить голосовалку :(")
             })
-        }, error = {
-            myBot.sendMessage(chatId = chatId, text = "Не получилось сбросить голосовалку :(")
+        }, error = { error ->
+            myBot.sendMessage(chatId = chatId, text = "Ты не в чате")
         })
     }
 
