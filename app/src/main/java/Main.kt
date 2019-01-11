@@ -13,7 +13,7 @@ private const val COMMAND_HELP = "help"
 private const val COMMAND_BOOK = "book"
 private const val COMMAND_VOTE = "vote"
 private const val COMMAND_RESET = "reset"
-
+private const val COMMAND_STOP = "stop"
 
 private const val START_TEXT = """
 Ну что парни, я помогу вам определиться кто идет в баньку.
@@ -24,6 +24,7 @@ private const val START_TEXT = """
 /vote - запускает голосование
 /book - выбирает красавчика, бронирующего баньку
 /reset - обнуляет текущее голосование
+/stop - отменяет голосование
 """
 
 private const val HELP_TEXT = """
@@ -35,7 +36,8 @@ private const val HELP_TEXT = """
 /help - показывает доступные комманды и описание
 /vote - запускает голосование
 /book - выбирает красавчика, который будет бронировать баню
-/reset  - обнуляет текущее голосование
+/reset - обнуляет текущее голосование
+/stop - отменяет голосование
 """
 
 const val MESSAGE_RESET = "Пацаны, я всё обнулил. Запускаю все сначала."
@@ -106,6 +108,13 @@ object Main {
                     bot.sendMessage(chatId = update.chatId(), text = HELP_TEXT)
                 }
 
+                command(COMMAND_STOP) { bot, update ->
+                    runIfAdmin(update) {
+                        resetVoting(update.chatId(), 0)
+                        bot.sendMessage(chatId = update.chatId(), text = "Голосование отменено.")
+                    }
+                }
+
                 command(COMMAND_VOTE) { bot, update ->
                     if (votingDays.containsKey(today)) {
                         val voting = getTodayVoting()
@@ -166,16 +175,17 @@ object Main {
 
                 callbackQuery("accept") { bot, update ->
                     update.callbackQuery?.let { callback ->
+                        val chatId = callback.message?.chat?.id ?: return@callbackQuery
                         val voting = getTodayVoting()
                         voting.addParticipant(callback.from)
                         val participants = voting.getParticipants()
                         val text = participants.joinToString(postfix = if (participants.count() < 2) " идёт" else " идут") { it.asString() }
-                        bot.sendMessage(chatId = update.chatId(), text = "$text.\n$MESSAGE_DIDNT_VOTED: ${voting.remainingVoters}")
+                        bot.sendMessage(chatId = chatId, text = "$text.\n$MESSAGE_DIDNT_VOTED: ${voting.remainingVoters}")
                     }
                 }
 
                 callbackQuery("decline") { bot, update ->
-                    update.callbackQuery?.let {
+                    update.callbackQuery?.let { it ->
                         val chatId = it.message?.chat?.id ?: return@callbackQuery
                         val voting = getTodayVoting()
                         voting.removeParticipant(it.from)
