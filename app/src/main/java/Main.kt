@@ -38,14 +38,26 @@ private const val HELP_TEXT = """
 /reset  - обнуляет текущее голосование
 """
 
+const val MESSAGE_RESET = "Пацаны, я всё обнулил. Запускаю все сначала."
+const val MESSAGE_GO_TO_BATH = "Ну что, идём в баньку?"
+const val MESSAGE_VOTING_ONGOING = "Голосовалка уже запущена!"
+const val MESSAGE_WE_HAVE_WINNER = "У нас уже есть победитель"
+const val MESSAGE_CONGRAC_WINNER = "Поздравляем! Бронирует"
+const val MESSAGE_NOBODY_COME = "Никто не идёт :("
+const val MESSAGE_DIDNT_VOTED = "Не проголосовало"
+const val MESSAGE_FAIL_TO_RESET = "Не получилось сбросить голосовалку :("
+
+const val BOT_API_TOKEN = "706074071:AAG99X02_Uk9Tn0TVTO5fAk50dRwzPcE7p4"
 
 object Main {
 
     class VotingNotStartedException(message: String) : Exception(message)
 
-    data class Voting(private val totalVoters: Int, val admins: List<ChatMember>) {
+    data class Voting(private val totalVoters: Int, val admins: List<ChatMember>, val messageId: Long) {
         private var users: MutableSet<User> = mutableSetOf()
-        private var booker: User? = null
+        var booker: User? = null
+            private set
+
         val isDecided get() = booker != null
         val remainingVoters: Int get() = (totalVoters - 1) - users.count()
         fun addParticipant(user: User) = users.add(user)
@@ -70,83 +82,95 @@ object Main {
 
     private lateinit var myBot: Bot
 
+    private val inlineKeyboardMarkup = InlineKeyboardMarkup(
+        listOf(
+            listOf(InlineKeyboardButton(text = "Иду", callbackData = "accept")),
+            listOf(InlineKeyboardButton(text = "Не иду", callbackData = "decline"))
+        )
+    )
+
+    private fun Update.chatId(): Long = this.message!!.chat.id
+    private fun User.asString(): String = "$firstName ${lastName ?: ""} (@${username ?: "Позорище, сделай себе UserName уже!"})"
+
     @JvmStatic
     fun main(args: Array<String>) {
         myBot = bot {
-            token = "706074071:AAG99X02_Uk9Tn0TVTO5fAk50dRwzPcE7p4"
+            token = BOT_API_TOKEN
 
             dispatch {
                 command(COMMAND_START) { bot, update ->
-                    bot.sendMessage(chatId = update.message!!.chat.id, text = START_TEXT)
+                    bot.sendMessage(chatId = update.chatId(), text = START_TEXT)
                 }
 
                 command(COMMAND_HELP) { bot, update ->
-                    bot.sendMessage(chatId = update.message!!.chat.id, text = HELP_TEXT)
+                    bot.sendMessage(chatId = update.chatId(), text = HELP_TEXT)
                 }
 
                 command(COMMAND_VOTE) { bot, update ->
-                    val chatId = update.message?.chat?.id ?: return@command
-
-                    val inlineKeyboardMarkup = InlineKeyboardMarkup(
-                        listOf(
-                            listOf(InlineKeyboardButton(text = "Иду", callbackData = "accept")),
-                            listOf(InlineKeyboardButton(text = "Не иду", callbackData = "decline"))
-                        )
-                    )
-
-                    bot.sendMessage(
-                        chatId = chatId,
-                        text = "Ну что, идём в баньку?",
-                        replyMarkup = inlineKeyboardMarkup
-                    )
-
                     if (votingDays.containsKey(today)) {
-                        if (getTodayVoting().isDecided) {
+                        val voting = getTodayVoting()
+                        if (voting.isDecided) {
+
                             bot.sendMessage(
-                                chatId = chatId,
-                                text = "Вы уже проголосовали, чего выпендриваешься?"
+                                chatId = update.chatId(),
+                                text = "$MESSAGE_WE_HAVE_WINNER: ${voting.booker!!.asString()}"
+                            )
+                        } else {
+
+                            bot.sendMessage(
+                                chatId = update.chatId(),
+                                text = MESSAGE_VOTING_ONGOING
                             )
                         }
                     } else {
-                        resetVoting(chatId)
+
+                        val voteResponse = bot.sendMessage(
+                            chatId = update.chatId(),
+                            text = MESSAGE_GO_TO_BATH,
+                            replyMarkup = inlineKeyboardMarkup
+                        )
+
+                        voteResponse.fold(response = { response ->
+                            resetVoting(update.chatId(), response!!.result!!.messageId)
+                        })
                     }
                 }
 
                 command(COMMAND_BOOK) { bot, update ->
-                    val chatId = update.message?.chat?.id ?: return@command
                     val message = try {
                         val voting = getTodayVoting()
                         val bookManager = voting.chooseBookManager()
                         if (bookManager != null) {
-                            "Поздравляем! Бронирует: ${bookManager.asString()}\n" +
-                                    "Идут: ${voting.getParticipants().joinToString { it.asString() }}"
+                            val participants = voting.getParticipants()
+                            "$MESSAGE_CONGRAC_WINNER: ${bookManager.asString()}\n" +
+                                    participants.joinToString(prefix = if (participants.count() > 1) "Идут: " else "Идёт: ") { it.asString() }
                         } else {
-                            "Никто не идёт :("
+                            MESSAGE_NOBODY_COME
                         }
                     } catch (ex: VotingNotStartedException) {
                         ex.message!!
                     }
 
-                    bot.sendMessage(chatId = chatId, text = message)
+                    bot.sendMessage(chatId = update.chatId(), text = message)
                 }
 
                 command(COMMAND_RESET) { bot, update ->
                     runIfAdmin(update) {
-                        val chatId = update.message?.chat?.id ?: return@runIfAdmin
-                        resetVoting(chatId)
-                        bot.sendMessage(chatId, "Я всё обнулил, запускайте голосовалку сначала.")
+                        val currVoting = getTodayVoting()
+                        bot.deleteMessage(update.chatId(), currVoting.messageId)
+                        bot.sendMessage(update.chatId(), MESSAGE_RESET, replyMarkup = inlineKeyboardMarkup).fold(response = { response ->
+                            resetVoting(update.chatId(), response!!.result!!.messageId)
+                        })
                     }
                 }
 
                 callbackQuery("accept") { bot, update ->
                     update.callbackQuery?.let { callback ->
-                        val chatId = callback.message?.chat?.id ?: return@callbackQuery
                         val voting = getTodayVoting()
                         voting.addParticipant(callback.from)
                         val participants = voting.getParticipants()
-                        val text = participants.joinToString(postfix = if (participants.count() < 2) " идёт" else " идут") { user -> user.asString() }
-
-                        bot.sendMessage(chatId = chatId, text = "$text. Не проголосовало: ${voting.remainingVoters}")
+                        val text = participants.joinToString(postfix = if (participants.count() < 2) " идёт" else " идут") { it.asString() }
+                        bot.sendMessage(chatId = update.chatId(), text = "$text.\n$MESSAGE_DIDNT_VOTED: ${voting.remainingVoters}")
                     }
                 }
 
@@ -168,24 +192,20 @@ object Main {
         myBot.startPolling()
     }
 
-    private fun resetVoting(chatId: Long) {
-        val chatAdminsResponse = myBot.getChatAdministrators(chatId)
-        val membersResponse = myBot.getChatMembersCount(chatId)
 
-        chatAdminsResponse.fold(response = { chat ->
+    private fun resetVoting(chatId: Long, messageId: Long) {
+        myBot.getChatAdministrators(chatId).fold(response = { chat ->
             val admins = chat!!.result!!
-            membersResponse.fold(response = { members ->
+            myBot.getChatMembersCount(chatId).fold(response = { members ->
                 val totalVoters = members!!.result!!
-                votingDays[today] = Voting(totalVoters, admins)
+                votingDays[today] = Voting(totalVoters, admins, messageId)
             }, error = {
-                myBot.sendMessage(chatId = chatId, text = "Не получилось сбросить голосовалку :(")
+                myBot.sendMessage(chatId = chatId, text = MESSAGE_FAIL_TO_RESET)
             })
-        }, error = { error ->
+        }, error = {
             myBot.sendMessage(chatId = chatId, text = "Ты не в чате")
         })
     }
-
-    private fun User.asString(): String = "$firstName ${lastName ?: ""} (@${username ?: "Позорище, сделай себе UserName уже!"})"
 
     private fun runIfAdmin(update: Update, unit: () -> Unit) {
         val voting = getTodayVoting()
@@ -193,8 +213,8 @@ object Main {
             unit.invoke()
         } else {
             myBot.sendMessage(
-                update.message!!.chat.id,
-                "Хрена себе ты захотел! Сбросить голосование может только ${voting.admins.joinToString { chatMember -> chatMember.user.asString() }}"
+                update.chatId(),
+                "Хрена себе ты захотел! Сбросить голосование может только ${voting.admins.joinToString { it.user.asString() }}"
             )
         }
     }
