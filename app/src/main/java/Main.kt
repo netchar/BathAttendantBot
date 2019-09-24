@@ -79,7 +79,7 @@ private fun onStart(bot: Bot, update: Update) {
             })
         }
         currentVoting.isOngoing() -> bot.sendMessage(update.chatId(), MESSAGE_VOTING_ONGOING)
-        currentVoting.isFinished() -> bot.sendMessage(update.chatId(), "У нас уже есть бронирующий красавчик: ${currentVoting.booker!!.asString()}!")
+        currentVoting.isFinished() -> bot.informVotingFinished(update, currentVoting)
     }
 }
 
@@ -97,7 +97,7 @@ private fun onStop(bot: Bot, update: Update) {
             bot.sendMessage(chatId, MESSAGE_VOTING_UNINITIALIZED)
         } else {
             bot.runIfAdmin(update, currentVoting, "Завершить голосование может только:\n ${currentVoting.admins.printMembers()}") {
-                deleteMessage(chatId, currentVoting.votingMessageId)
+                deleteVotingMessage(chatId, currentVoting)
                 sendMessage(chatId, MESSAGE_VOTING_FINISHED).fold({
                     resetVoting()
                 })
@@ -110,28 +110,31 @@ private fun onStop(bot: Bot, update: Update) {
 
 private fun onBook(bot: Bot, update: Update) {
     val chatId = update.chatId()
+
     val currentVoting = voting
 
-    val message = if (currentVoting == null) {
-        MESSAGE_VOTING_UNINITIALIZED
-    } else {
-        val booker = currentVoting.chooseBookManager()
+    when {
+        currentVoting == null -> bot.sendMessage(chatId, MESSAGE_VOTING_UNINITIALIZED)
+        currentVoting.isFinished() -> bot.informVotingFinished(update, currentVoting)
+        else -> {
+            val booker = currentVoting.chooseBookManager()
 
-        if (booker == null) {
-            MESSAGE_NO_ONE_IS_COMING
-        } else {
-            val participants = currentVoting.getParticipants()
-            buildString {
-                appendln("Поздравляем! Бронирует:")
-                appendln(booker.asString())
-                appendln()
-                appendln(if (participants.count() > 1) "Идут: " else "Идёт: ")
-                appendln(participants.joinToString(separator = "\n") { it.asString() })
+            if (booker == null) {
+                bot.sendMessage(chatId, MESSAGE_NO_ONE_IS_COMING)
+            } else {
+                bot.deleteVotingMessage(chatId, currentVoting)
+
+                val participants = currentVoting.getParticipants()
+                bot.sendMessage(chatId, buildString {
+                    appendln("Поздравляем! Бронирует:")
+                    appendln(booker.asString())
+                    appendln()
+                    appendln(if (participants.count() > 1) "Идут: " else "Идёт: ")
+                    appendln(participants.joinToString(separator = "\n") { it.asString() })
+                })
             }
         }
     }
-
-    bot.sendMessage(chatId, message)
 }
 
 private fun onReset(bot: Bot, update: Update) {
@@ -180,7 +183,6 @@ private fun onDecline(bot: Bot, update: Update) {
 
         currentVoting.declineInvitation(user)
 
-
         val message = buildString {
             appendln("${user.asString()} не идёт")
             appendln()
@@ -190,6 +192,17 @@ private fun onDecline(bot: Bot, update: Update) {
         val chatId = query.message?.chat?.id!!
         bot.sendMessage(chatId, message)
     }
+}
+
+private fun Bot.deleteVotingMessage(chatId: Long, currentVoting: Voting) {
+    deleteMessage(chatId, currentVoting.votingMessageId)
+}
+
+private fun Bot.informVotingFinished(update: Update, currentVoting: Voting) {
+    sendMessage(update.chatId(), buildString {
+        appendln("У нас уже есть бронирующий красавчик:")
+        appendln(currentVoting.booker!!.asString())
+    })
 }
 
 private fun getRemainingVotersMessage(currentVoting: Voting): String {
