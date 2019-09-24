@@ -75,21 +75,13 @@ fun main(args: Array<String>) {
 private fun onStart(bot: Bot, update: Update) {
     val currentVoting = voting
     when {
-        currentVoting == null -> initializeVoting(bot, update)
+        currentVoting == null -> {
+            bot.sendMessage(update.chatId(), MESSAGE_READY_TO_BATH, replyMarkup = inlineKeyboardMarkup).fold({
+                initVoting(bot, update, it?.result?.messageId!!)
+            })
+        }
         currentVoting.isOngoing() -> bot.sendMessage(update.chatId(), MESSAGE_VOTING_ONGOING)
         currentVoting.isFinished() -> bot.sendMessage(update.chatId(), "У нас уже есть бронирующий красавчик: ${currentVoting.booker!!.asString()}!")
-    }
-}
-
-private fun initializeVoting(bot: Bot, update: Update) {
-    val chatId = update.chatId()
-    try {
-        val message = bot.sendMessage(chatId, MESSAGE_READY_TO_BATH, replyMarkup = inlineKeyboardMarkup).get()
-        val admins = bot.getChatAdministrators(chatId).get()
-        val votersCount = bot.getChatMembersCount(chatId).get()
-        voting = Voting(votersCount, admins, message.messageId)
-    } catch (ex: ApiException) {
-        bot.sendMessage(chatId, MESSAGE_ERROR_UNABLE_TO_START_VOTING)
     }
 }
 
@@ -151,7 +143,7 @@ private fun onReset(bot: Bot, update: Update) {
         bot.runIfAdmin(update, currentVoting, "Хрена себе ты захотел! Сбросить голосование может только:\n ${currentVoting.admins.printMembers()}") {
             deleteMessage(chatId, currentVoting.votingMessageId)
             sendMessage(chatId, MESSAGE_VOTING_RESET, replyMarkup = inlineKeyboardMarkup).fold({
-                resetVoting()
+                initVoting(this, update, it?.result?.messageId!!)
             })
         }
     }
@@ -194,6 +186,17 @@ fun onDecline(bot: Bot, update: Update) {
 
         val chatId = query.message?.chat?.id!!
         bot.sendMessage(chatId, message)
+    }
+}
+
+private fun initVoting(bot: Bot, update: Update, newMessageId: Long) {
+    val chatId = update.chatId()
+    try {
+        val admins = bot.getChatAdministrators(chatId).get()
+        val votersCount = bot.getChatMembersCount(chatId).get()
+        voting = Voting(votersCount, admins, newMessageId)
+    } catch (ex: ApiException) {
+        bot.sendMessage(chatId, MESSAGE_ERROR_UNABLE_TO_START_VOTING)
     }
 }
 
