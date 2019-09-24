@@ -1,5 +1,5 @@
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.3.11'
+    id "org.jetbrains.kotlin.jvm" version "1.3.50"
 }
 
 group 'com.egngl.bathattendant'
@@ -11,8 +11,8 @@ repositories {
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
-    implementation 'io.github.seik.kotlin-telegram-bot:telegram:0.3.5'
+    compile "org.jetbrains.kotlin:kotlin-stdlib:1.3.50"
+    implementation 'io.github.seik.kotlin-telegram-bot:telegram:4.4.0'
 }
 
 compileKotlin {
