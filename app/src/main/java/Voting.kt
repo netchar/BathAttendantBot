@@ -6,7 +6,7 @@ data class Voting(
     val admins: List<ChatMember>,
     val votingMessageId: Long
 ) {
-    private var users: MutableSet<User> = mutableSetOf()
+    private var answeredUsers: MutableMap<User, Boolean> = mutableMapOf()
 
     var booker: User? = null
         private set
@@ -17,18 +17,22 @@ data class Voting(
 
     fun getRemainingVoters(): Int {
         val botsCount = admins.count { it.user.isBot }
-        return (totalVoters - botsCount) - users.count()
+        return totalVoters - botsCount - answeredUsers.count()
     }
 
-    fun addParticipant(user: User) = users.add(user)
+    fun acceptInvitation(user: User) {
+        answeredUsers[user] = true
+    }
 
-    fun removeParticipant(user: User) = users.remove(user)
+    fun declineInvitation(user: User) {
+        answeredUsers[user] = false
+    }
 
-    fun getParticipants(): List<User> = users.toList()
+    fun getParticipants(): List<User> = answeredUsers.filter { it.hasAcceptedInvitation() }.keys.toList()
 
     fun chooseBookManager(): User? {
         if (isOngoing()) {
-            booker = users.shuffled().firstOrNull()
+            booker = getParticipants().shuffled().firstOrNull()
         }
         return booker
     }
@@ -36,6 +40,7 @@ data class Voting(
     fun isAdmin(user: User): Boolean {
         return admins.any { chatMember -> chatMember.user.id == user.id }
     }
-}
 
-fun Voting?.uninitialized() = this == null
+    private fun Map.Entry<User, Boolean>.hasAcceptedInvitation() = value
+    private fun Map.Entry<User, Boolean>.hasDeclinedInvitation() = !value
+}

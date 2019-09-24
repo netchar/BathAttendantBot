@@ -122,7 +122,9 @@ private fun onBook(bot: Bot, update: Update) {
         } else {
             val participants = currentVoting.getParticipants()
             buildString {
-                appendln("Поздравляем! Бронирует: ${booker.asString()}")
+                appendln("Поздравляем! Бронирует:")
+                appendln(booker.asString())
+                appendln()
                 appendln(if (participants.count() > 1) "Идут: " else "Идёт: ")
                 appendln(participants.joinToString(separator = "\n") { it.asString() })
             }
@@ -148,25 +150,20 @@ private fun onReset(bot: Bot, update: Update) {
     }
 }
 
-fun onAccept(bot: Bot, update: Update) {
+private fun onAccept(bot: Bot, update: Update) {
     val query = update.callbackQuery
     val currentVoting = voting
 
     if (query != null && currentVoting != null) {
-        currentVoting.addParticipant(query.from)
+        currentVoting.acceptInvitation(query.from)
 
         val participants = currentVoting.getParticipants()
+
         val message = buildString {
             appendln(if (participants.count() < 2) " Идёт:" else " Идут:")
             appendln(participants.printUsers())
             appendln()
-            val remainingVoters = currentVoting.getRemainingVoters()
-
-            if (remainingVoters > 0) {
-                appendln("Не проголосовало: $remainingVoters")
-            } else {
-                appendln("Все проголосовали")
-            }
+            appendln(getRemainingVotersMessage(currentVoting))
         }
 
         val chatId = query.message?.chat?.id!!
@@ -174,23 +171,33 @@ fun onAccept(bot: Bot, update: Update) {
     }
 }
 
-fun onDecline(bot: Bot, update: Update) {
+private fun onDecline(bot: Bot, update: Update) {
     val query = update.callbackQuery
     val currentVoting = voting
 
     if (query != null && currentVoting != null) {
         val user = query.from
 
-        currentVoting.removeParticipant(user)
+        currentVoting.declineInvitation(user)
+
 
         val message = buildString {
             appendln("${user.asString()} не идёт")
             appendln()
-            appendln("Не проголосовало: ${currentVoting.getRemainingVoters()}")
+            appendln(getRemainingVotersMessage(currentVoting))
         }
 
         val chatId = query.message?.chat?.id!!
         bot.sendMessage(chatId, message)
+    }
+}
+
+private fun getRemainingVotersMessage(currentVoting: Voting): String {
+    val remainingVoters = currentVoting.getRemainingVoters()
+    return if (remainingVoters > 0) {
+        "Не проголосовало: $remainingVoters"
+    } else {
+        "Все проголосовали"
     }
 }
 
