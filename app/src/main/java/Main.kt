@@ -10,7 +10,6 @@ import me.ivmg.telegram.entities.Update
 import me.ivmg.telegram.network.fold
 import okhttp3.logging.HttpLoggingInterceptor
 
-
 private const val COMMAND_START = "start"
 private const val COMMAND_HELP = "help"
 private const val COMMAND_BOOK = "book"
@@ -37,7 +36,8 @@ const val BOT_API_TOKEN = "706074071:AAEn6vo9DmEFEjYd8IcbC2boMslsxdpXJMQ"
 
 private val inlineKeyboardMarkup = InlineKeyboardMarkup(
     listOf(
-        listOf(InlineKeyboardButton("Иду", QUERY_ACCEPT)), listOf(InlineKeyboardButton("Не иду", QUERY_DECLINE))
+        listOf(InlineKeyboardButton(text = "Иду", callbackData = QUERY_ACCEPT)),
+        listOf(InlineKeyboardButton(text = "Не иду", callbackData = QUERY_DECLINE))
     )
 )
 
@@ -46,21 +46,16 @@ private var voting: Voting? = null
 fun main(args: Array<String>) {
     bot {
         token = BOT_API_TOKEN
-        logLevel = HttpLoggingInterceptor.Level.NONE
+        logLevel = HttpLoggingInterceptor.Level.BASIC
 
         dispatch {
             command(COMMAND_START, ::onStart)
-
             command(COMMAND_HELP, ::onHelp)
-
             command(COMMAND_STOP, ::onStop)
-
             command(COMMAND_BOOK, ::onBook)
-
             command(COMMAND_RESET, ::onReset)
 
             callbackQuery(QUERY_ACCEPT, ::onAccept)
-
             callbackQuery(QUERY_DECLINE, ::onDecline)
 
             telegramError { _, telegramError ->
@@ -75,10 +70,7 @@ private fun onStart(bot: Bot, update: Update) {
     when {
         currentVoting == null -> initializeVoting(bot, update)
         currentVoting.isOngoing() -> bot.sendMessage(update.chatId(), "Голосование уже запущено.")
-        currentVoting.isFinished() -> bot.sendMessage(
-            update.chatId(),
-            "У нас уже есть бронирующий красавчик: ${currentVoting.booker!!.asString()}!"
-        )
+        currentVoting.isFinished() -> bot.sendMessage(update.chatId(), "У нас уже есть бронирующий красавчик: ${currentVoting.booker!!.asString()}!")
     }
 }
 
@@ -167,8 +159,9 @@ fun onAccept(bot: Bot, update: Update) {
 
         val participants = currentVoting.getParticipants()
         val message = buildString {
-            appendln(if (participants.count() < 2) " идёт:" else " идут:")
+            appendln(if (participants.count() < 2) " Идёт:" else " Идут:")
             appendln(participants.printUsers())
+            appendln()
             appendln("Не проголосовало: ${currentVoting.getRemainingVoters()}")
         }
 
@@ -188,6 +181,7 @@ fun onDecline(bot: Bot, update: Update) {
 
         val message = buildString {
             appendln("${user.asString()} не идёт")
+            appendln()
             appendln("Не проголосовало: ${currentVoting.getRemainingVoters()}")
         }
 
