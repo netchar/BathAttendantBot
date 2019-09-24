@@ -16,7 +16,8 @@ data class Voting(
     fun isFinished() = !isOngoing()
 
     fun getRemainingVoters(): Int {
-        return (totalVoters - users.count { it.isBot }) - users.count()
+        val botsCount = admins.count { it.user.isBot }
+        return (totalVoters - botsCount) - users.count()
     }
 
     fun addParticipant(user: User) = users.add(user)

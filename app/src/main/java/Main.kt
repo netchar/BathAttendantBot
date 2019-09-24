@@ -65,9 +65,7 @@ fun main(args: Array<String>) {
             callbackQuery(QUERY_ACCEPT, ::onAccept)
             callbackQuery(QUERY_DECLINE, ::onDecline)
 
-            telegramError { _, telegramError ->
-                println(telegramError.getErrorMessage())
-            }
+            telegramError { _, error -> println(error.getErrorMessage()) }
         }
     }.startPolling()
 }
@@ -113,6 +111,7 @@ private fun onStop(bot: Bot, update: Update) {
 private fun onBook(bot: Bot, update: Update) {
     val chatId = update.chatId()
     val currentVoting = voting
+
     val message = if (currentVoting == null) {
         MESSAGE_VOTING_UNINITIALIZED
     } else {
@@ -161,7 +160,13 @@ fun onAccept(bot: Bot, update: Update) {
             appendln(if (participants.count() < 2) " Идёт:" else " Идут:")
             appendln(participants.printUsers())
             appendln()
-            appendln("Не проголосовало: ${currentVoting.getRemainingVoters()}")
+            val remainingVoters = currentVoting.getRemainingVoters()
+
+            if (remainingVoters > 0) {
+                appendln("Не проголосовало: $remainingVoters")
+            } else {
+                appendln("Все проголосовали")
+            }
         }
 
         val chatId = query.message?.chat?.id!!
