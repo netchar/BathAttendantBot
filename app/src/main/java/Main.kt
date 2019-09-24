@@ -9,6 +9,8 @@ import me.ivmg.telegram.entities.InlineKeyboardMarkup
 import me.ivmg.telegram.entities.Update
 import me.ivmg.telegram.network.fold
 import okhttp3.logging.HttpLoggingInterceptor
+import java.io.FileInputStream
+import java.util.Properties
 
 private const val COMMAND_START = "start"
 private const val COMMAND_HELP = "help"
@@ -39,8 +41,6 @@ const val MESSAGE_VOTING_RESET = "Пацаны, я всё обнулил. Зап
 
 const val MESSAGE_ERROR_UNABLE_TO_START_VOTING = "Не могу запустить голосование."
 
-const val BOT_API_TOKEN = "706074071:AAEn6vo9DmEFEjYd8IcbC2boMslsxdpXJMQ"
-
 private val inlineKeyboardMarkup = InlineKeyboardMarkup(
     listOf(
         listOf(InlineKeyboardButton(text = "Иду", callbackData = QUERY_ACCEPT)),
@@ -50,24 +50,37 @@ private val inlineKeyboardMarkup = InlineKeyboardMarkup(
 
 private var voting: Voting? = null
 
-fun main(args: Array<String>) {
-    bot {
-        token = BOT_API_TOKEN
-        logLevel = HttpLoggingInterceptor.Level.BASIC
+object Main {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        val key = getApiKey()
+        bot {
+            token = key
+            logLevel = HttpLoggingInterceptor.Level.BASIC
 
-        dispatch {
-            command(COMMAND_START, ::onStart)
-            command(COMMAND_HELP, ::onHelp)
-            command(COMMAND_STOP, ::onStop)
-            command(COMMAND_BOOK, ::onBook)
-            command(COMMAND_RESET, ::onReset)
+            dispatch {
+                command(COMMAND_START, ::onStart)
+                command(COMMAND_HELP, ::onHelp)
+                command(COMMAND_STOP, ::onStop)
+                command(COMMAND_BOOK, ::onBook)
+                command(COMMAND_RESET, ::onReset)
 
-            callbackQuery(QUERY_ACCEPT, ::onAccept)
-            callbackQuery(QUERY_DECLINE, ::onDecline)
+                callbackQuery(QUERY_ACCEPT, ::onAccept)
+                callbackQuery(QUERY_DECLINE, ::onDecline)
 
-            telegramError { _, error -> println(error.getErrorMessage()) }
+                telegramError { _, error -> println(error.getErrorMessage()) }
+            }
+        }.startPolling()
+    }
+
+    private fun getApiKey(): String {
+        val stream = this.javaClass.getResourceAsStream("secrets.properties")
+        stream.use {
+            val prop = Properties()
+            prop.load(it)
+            return prop.getValue("API_KEY").toString()
         }
-    }.startPolling()
+    }
 }
 
 private fun onStart(bot: Bot, update: Update) {
