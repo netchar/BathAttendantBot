@@ -31,6 +31,13 @@ private const val HELP_TEXT = """
 """
 
 const val MESSAGE_VOTING_UNINITIALIZED = "Голосование не запущено"
+const val MESSAGE_VOTING_ONGOING = "Голосование уже запущено."
+const val MESSAGE_VOTING_FINISHED = "Голосование завершено."
+const val MESSAGE_READY_TO_BATH = "Ну что, идём в баньку?"
+const val MESSAGE_NO_ONE_IS_COMING = "Никто не идёт :("
+const val MESSAGE_VOTING_RESET = "Пацаны, я всё обнулил. Запускаю все сначала."
+
+const val MESSAGE_ERROR_UNABLE_TO_START_VOTING = "Не могу запустить голосование."
 
 const val BOT_API_TOKEN = "706074071:AAEn6vo9DmEFEjYd8IcbC2boMslsxdpXJMQ"
 
@@ -69,7 +76,7 @@ private fun onStart(bot: Bot, update: Update) {
     val currentVoting = voting
     when {
         currentVoting == null -> initializeVoting(bot, update)
-        currentVoting.isOngoing() -> bot.sendMessage(update.chatId(), "Голосование уже запущено.")
+        currentVoting.isOngoing() -> bot.sendMessage(update.chatId(), MESSAGE_VOTING_ONGOING)
         currentVoting.isFinished() -> bot.sendMessage(update.chatId(), "У нас уже есть бронирующий красавчик: ${currentVoting.booker!!.asString()}!")
     }
 }
@@ -77,12 +84,12 @@ private fun onStart(bot: Bot, update: Update) {
 private fun initializeVoting(bot: Bot, update: Update) {
     val chatId = update.chatId()
     try {
-        val message = bot.sendMessage(chatId, "Ну что, идём в баньку?", replyMarkup = inlineKeyboardMarkup).get()
+        val message = bot.sendMessage(chatId, MESSAGE_READY_TO_BATH, replyMarkup = inlineKeyboardMarkup).get()
         val admins = bot.getChatAdministrators(chatId).get()
         val votersCount = bot.getChatMembersCount(chatId).get()
         voting = Voting(votersCount, admins, message.messageId)
     } catch (ex: ApiException) {
-        bot.sendMessage(chatId, "Не могу запустить голосование.")
+        bot.sendMessage(chatId, MESSAGE_ERROR_UNABLE_TO_START_VOTING)
     }
 }
 
@@ -101,7 +108,7 @@ private fun onStop(bot: Bot, update: Update) {
         } else {
             bot.runIfAdmin(update, currentVoting, "Завершить голосование может только:\n ${currentVoting.admins.printMembers()}") {
                 deleteMessage(chatId, currentVoting.votingMessageId)
-                sendMessage(chatId, "Голосование завершено.").fold({
+                sendMessage(chatId, MESSAGE_VOTING_FINISHED).fold({
                     resetVoting()
                 })
             }
@@ -120,7 +127,7 @@ private fun onBook(bot: Bot, update: Update) {
         val booker = currentVoting.chooseBookManager()
 
         if (booker == null) {
-            "Никто не идёт :("
+            MESSAGE_NO_ONE_IS_COMING
         } else {
             val participants = currentVoting.getParticipants()
             buildString {
@@ -143,7 +150,7 @@ private fun onReset(bot: Bot, update: Update) {
     } else {
         bot.runIfAdmin(update, currentVoting, "Хрена себе ты захотел! Сбросить голосование может только:\n ${currentVoting.admins.printMembers()}") {
             deleteMessage(chatId, currentVoting.votingMessageId)
-            sendMessage(chatId, "Пацаны, я всё обнулил. Запускаю все сначала.", replyMarkup = inlineKeyboardMarkup).fold({
+            sendMessage(chatId, MESSAGE_VOTING_RESET, replyMarkup = inlineKeyboardMarkup).fold({
                 resetVoting()
             })
         }
