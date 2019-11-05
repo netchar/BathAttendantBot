@@ -1,5 +1,7 @@
 # BathAttendantBot
 
+Simple Telegram bot helping my friends to choose a responsible one to book a bath
+
 # License  
 	Copyright © 2019 Eugene Glushankov
 
