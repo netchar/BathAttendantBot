@@ -1,6 +1,6 @@
 # BathAttendantBot
 
-Telegram bot helping my friends to choose a responsible one to book a bath :)
+Telegram bot helping my friends to choose responsible one to book a sauna :)
 
 # License  
 	Copyright © 2019 Eugene Glushankov
